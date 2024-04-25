@@ -1,0 +1,28 @@
+name: Newman Collection Run with HTML Extra Report
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  newman:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '14'  # Puedes elegir otra versión de Node.js que prefieras
+
+    - name: Install Newman and htmlextra reporter
+      run: npm install -g newman newman-reporter-htmlextra
+
+    - name: Run collection with htmlextra reporter
+      run: newman run ./postman/postman_collection.json -r htmlextra
