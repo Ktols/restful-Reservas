@@ -24,3 +24,5 @@ jobs:
     - name: Install Newman and htmlextra reporter
       run: npm install -g newman newman-reporter-htmlextra
 
+    - name: Run collection with htmlextra reporter
+      run: newman run ./postman/postman_collection.json -r htmlextra
