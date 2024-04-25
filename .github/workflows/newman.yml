@@ -32,3 +32,9 @@ jobs:
 
     - name: Run collection with htmlextra reporter
       run: newman run ./postman/postman_collection.json -r htmlextra
+      
+    - name: Upload HTML report as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: newman-report
+        path: newman-report.html
