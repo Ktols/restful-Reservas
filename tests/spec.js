@@ -17,7 +17,7 @@ const generatePayload = function (firstname, lastname, totalprice, depositpaid, 
       'checkout': checkout
     }
   };
-//test  hola
+//test  hola test
   if (typeof (additionalneeds) !== 'undefined') {
     payload.additionalneeds = additionalneeds;
   }
