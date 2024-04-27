@@ -17,14 +17,14 @@ const generatePayload = function (firstname, lastname, totalprice, depositpaid, 
       'checkout': checkout
     }
   };
-//test  hola test
+
   if (typeof (additionalneeds) !== 'undefined') {
     payload.additionalneeds = additionalneeds;
   }
 
   return payload
 };
-
+//test  hola test
 const payload  = generatePayload('Sally', 'Brown', 111, true, 'Breakfast', '2013-02-01', '2013-02-04'),
     payload2 = generatePayload('Geoff', 'White', 111, true, 'Breakfast', '2013-02-02', '2013-02-05'),
     payload3 = generatePayload('Bob', 'Brown', 111, true, 'Breakfast', '2013-02-03', '2013-02-06');
