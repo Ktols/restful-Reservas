@@ -18,7 +18,7 @@ Este proyecto tiene como objetivo la **automatización de pruebas** de los servi
 ### 🌐 Pipeline de CI/CD
 El pipeline de CI está completamente automatizado usando **GitHub Actions**, ejecutando las pruebas cada vez que se realiza un **push** o una **pull request**. El flujo de ejecución está representado gráficamente en el siguiente diagrama:
 
-![Flujo de Automatización](imagenes/Flujo_Test_Automations.png)
+![Flujo de Automatización](imagenes/workflow.png)
 
 - El pipeline garantiza que todas las pruebas se ejecuten en menos de **5 minutos**.
 - Se logra un **100% de éxito en casos críticos** y una **cobertura mínima del 90% de los endpoints**.
