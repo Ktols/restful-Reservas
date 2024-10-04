@@ -34,7 +34,7 @@ jobs:
       run: ls -R
       
     - name: Run collection with htmlextra reporter
-      run: newman run ./postman/RESTFUL_BOOKER_AUTOMATE.postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html
+      run: newman run ./postman/postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html
       
     - name: Upload HTML report as artifact
       uses: actions/upload-artifact@v3
