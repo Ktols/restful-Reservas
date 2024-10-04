@@ -129,7 +129,8 @@ Una vez finalizadas las pruebas, puedes revisar el **reporte generado en la carp
 ---
 
 👨‍💻 **Autor**  
-Este proyecto fue desarrollado por **Emmanuel Salazar Revoredo** 
+El proyecto de automatizacion de pruebas de API y configuracion del Pipeline fue desarrollado por **Emmanuel Salazar Revoredo** 
+El codigo fuente de la API y Resquest de las API pertenecen Mark Winteringham de su repositorio [RESTful-Booker](https://github.com/mwinteringham/restful-booker)
 
 ---
 
