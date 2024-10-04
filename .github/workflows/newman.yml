@@ -31,7 +31,7 @@ jobs:
       run: npm start &
 
     - name: Run collection with htmlextra reporter
-      run: newman run ./postman/RESTFUL_BOOKER_AUTOMATE.postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html --suppress-exit-code
+      run: newman run ./postman/postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html --suppress-exit-code
       
     - name: Upload HTML report as artifact
       uses: actions/upload-artifact@v3
