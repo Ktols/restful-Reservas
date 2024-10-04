@@ -23,6 +23,31 @@ El pipeline de CI está completamente automatizado usando **GitHub Actions**, ej
 - El pipeline garantiza que todas las pruebas se ejecuten en menos de **5 minutos**.
 - Se logra un **100% de éxito en casos críticos** y una **cobertura mínima del 90% de los endpoints**.
 
+### 📦 Ejecución de Pruebas Automatizadas con GitHub Actions
+
+Este proyecto utiliza **GitHub Actions** para ejecutar las pruebas automatizadas de la API RestFul Booker a través de **Newman**.
+
+- Las pruebas se ejecutan automáticamente con cada push o pull request en la rama `main`.
+- Utilizamos el reporter **htmlextra** para generar un reporte HTML detallado de los resultados.
+
+#### 🚀 Artifacts
+
+Al finalizar la ejecución, se genera un **artifact** llamado `newman-report`, que contiene un resumen completo de la ejecución de las pruebas. Este archivo HTML incluye:
+
+- Casos fallidos
+- Tiempos de respuesta
+- Detalles de la ejecución de cada request
+
+Puedes encontrar el archivo en la sección de **Artifacts** del workflow en GitHub Actions.
+
+#### Ejemplo de Configuración del Workflow
+
+El archivo de configuración del workflow utiliza **Newman** para ejecutar la colección de Postman con el siguiente paso clave:
+
+```yaml
+- name: Run collection with htmlextra reporter
+  run: newman run ./postman/RESTFUL_BOOKER_AUTOMATE.postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html
+
 ---
 
 ### 🔧 Herramientas y Tecnologías
@@ -75,8 +100,6 @@ Para correr las pruebas localmente utilizando **Newman**, hemos creado un batch 
 #### 🚀 Ejecución de Pruebas
 Para correr las pruebas de manera local, simplemente ejecuta el archivo batch `Run_Automation.bat` que se encuentra en la raíz del proyecto. 
 
-```bash
-.\Run_Automation.bat
 🔄 **Durante la ejecución**, verás un mensaje de progreso dinámico indicando que se están ejecutando las pruebas.
 
 Al finalizar, se generará un **reporte HTML en la carpeta `newman`** con los resultados de la ejecución.
@@ -106,7 +129,7 @@ Una vez finalizadas las pruebas, puedes revisar el **reporte generado en la carp
 ---
 
 👨‍💻 **Autor**  
-Este proyecto fue desarrollado por **Emmanuel Salazar Revoredo** como parte de una **prueba técnica para YAPE**.
+Este proyecto fue desarrollado por **Emmanuel Salazar Revoredo** 
 
 ---
 
