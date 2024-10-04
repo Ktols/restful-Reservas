@@ -47,7 +47,7 @@ El archivo de configuración del workflow utiliza **Newman** para ejecutar la co
 ```yaml
 - name: Run collection with htmlextra reporter
   run: newman run ./postman/RESTFUL_BOOKER_AUTOMATE.postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html
-
+  ```
 ---
 
 ### 🔧 Herramientas y Tecnologías
