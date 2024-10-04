@@ -30,9 +30,6 @@ jobs:
     - name: Start the project
       run: npm start &
 
-    - name: List files in project directory  # NEW Step to ensure paths are correct
-      run: ls -R
-      
     - name: Run collection with htmlextra reporter
       run: newman run ./postman/postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html
       
