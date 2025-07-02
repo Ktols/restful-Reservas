@@ -1,5 +1,5 @@
 # 🚀 AUTOMATIZACIÓN DE PRUEBAS A SERVICIOS WEB  
-## RESTFUL - BOOKER 📋
+## RESTFUL - BOOKER 📋 HOLA
 
 ### 📌 Descripción del Proyecto
 Este proyecto tiene como objetivo la **automatización de pruebas** de los servicios web proporcionados por **RESTFUL Booker**, asegurando la validación completa de los Endpoints **Auth, Booking, y Ping**. El flujo de pruebas está integrado en un **pipeline de CI (GitHub Actions)** para una ejecución continua y confiable. 
