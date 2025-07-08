@@ -104,15 +104,3 @@ jobs:
       with:
         name: codeql-sarif-${{ matrix.language }}
         path: codeql-results/*.sarif
-    - name: Convert SARIF to HTML
-      run: |
-        pip install --user sarif-tools
-        export PATH="$PATH:$HOME/.local/bin"
-        for file in codeql-results/*.sarif; do
-          sarif-tools html "$file" -o "${file%.sarif}.html"
-        done
-    - name: Upload HTML report
-      uses: actions/upload-artifact@v4
-      with:
-        name: codeql-html-report-${{ matrix.language }}
-        path: codeql-results/*.html
