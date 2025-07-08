@@ -52,7 +52,7 @@ jobs:
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
         # Use 'javascript-typescript' to analyze code written in JavaScript, TypeScript or both
         # To learn more about changing the languages that are analyzed or customizing the build mode for your analysis,
-        # see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning.
+        # see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning.customizing-your-advanced-setup-for-code-scanning.
         # If you are analyzing a compiled language, you can modify the 'build-mode' for that language to customize how
         # your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
     steps:
@@ -98,3 +98,19 @@ jobs:
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
+    - name: Upload SARIF results
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeql-sarif-${{ matrix.language }}
+        path: ./**/results/*.sarif
+    - name: Convert SARIF to HTML
+      run: |
+        pip install sarif-tools
+        for file in $(find . -name "*.sarif"); do
+          sarif-tools html "$file" -o "${file%.sarif}.html"
+        done
+    - name: Upload HTML report
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeql-html-report-${{ matrix.language }}
+        path: ./**/*.html
