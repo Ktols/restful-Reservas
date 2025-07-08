@@ -1,4 +1,4 @@
-name: Newman Collection Run with HTML Extra Report
+name: Test API Automation with Newman
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
       run: newman run ./postman/postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html --suppress-exit-code
       
     - name: Upload HTML report as artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: newman-report
         path: newman-report.html
