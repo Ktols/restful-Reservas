@@ -98,6 +98,7 @@ jobs:
       uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
+        output: codeql-results/${{ matrix.language }}.sarif
     - name: Upload SARIF results
       uses: actions/upload-artifact@v4
       with:
@@ -106,11 +107,11 @@ jobs:
     - name: Convert SARIF to HTML
       run: |
         pip install sarif-tools
-        for file in $(find . -name "*.sarif"); do
+        for file in codeql-results/*.sarif; do
           sarif-tools html "$file" -o "${file%.sarif}.html"
         done
     - name: Upload HTML report
       uses: actions/upload-artifact@v4
       with:
         name: codeql-html-report-${{ matrix.language }}
-        path: ./**/*.html
+        path: codeql-results/*.html
