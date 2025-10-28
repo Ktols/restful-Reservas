@@ -8,9 +8,20 @@ on:
     branches:
       - main
 
+env:
+  # Umbral de porcentaje de fallo permitido (0-100)
+  FAILURE_THRESHOLD: 10
+  # Si es true, falla el workflow cuando se excede el umbral
+  FAIL_ON_THRESHOLD: true
+
 jobs:
   newman:
     runs-on: ubuntu-latest
+    # Hace que este job sea obligatorio para los PRs
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
 
     steps:
     - name: Checkout code
@@ -19,7 +30,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '16'  # Puedes elegir otra versión de Node.js que prefieras
+        node-version: '16'
 
     - name: Install Newman and htmlextra reporter
       run: npm install -g newman newman-reporter-htmlextra
@@ -30,11 +41,213 @@ jobs:
     - name: Start the project
       run: npm start &
 
+    - name: Wait for server to be ready
+      run: |
+        echo "Waiting for server to start..."
+        sleep 10
+
     - name: Run collection with htmlextra reporter
-      run: newman run ./postman/postman_collection.json -r htmlextra --reporter-htmlextra-export newman-report.html --suppress-exit-code
-      
+      id: newman
+      run: |
+        # Ejecutar Newman y capturar la salida
+        newman run ./postman/postman_collection.json \
+          -r htmlextra,json,cli \
+          --reporter-htmlextra-export newman-report.html \
+          --reporter-json-export newman-report.json \
+          --suppress-exit-code
+        
+        # Extraer métricas del reporte JSON
+        TOTAL_TESTS=$(jq '.run.stats.tests.total' newman-report.json)
+        FAILED_TESTS=$(jq '.run.stats.tests.failed' newman-report.json)
+        PASSED_TESTS=$(jq '.run.stats.tests.passed' newman-report.json)
+        TOTAL_ASSERTIONS=$(jq '.run.stats.assertions.total' newman-report.json)
+        FAILED_ASSERTIONS=$(jq '.run.stats.assertions.failed' newman-report.json)
+        
+        # Calcular porcentaje de fallo
+        if [ $TOTAL_TESTS -gt 0 ]; then
+          FAILURE_PERCENTAGE=$(awk "BEGIN {printf \"%.2f\", ($FAILED_TESTS / $TOTAL_TESTS) * 100}")
+        else
+          FAILURE_PERCENTAGE=0
+        fi
+        
+        # Guardar métricas en variables de entorno
+        echo "TOTAL_TESTS=$TOTAL_TESTS" >> $GITHUB_ENV
+        echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+        echo "PASSED_TESTS=$PASSED_TESTS" >> $GITHUB_ENV
+        echo "TOTAL_ASSERTIONS=$TOTAL_ASSERTIONS" >> $GITHUB_ENV
+        echo "FAILED_ASSERTIONS=$FAILED_ASSERTIONS" >> $GITHUB_ENV
+        echo "FAILURE_PERCENTAGE=$FAILURE_PERCENTAGE" >> $GITHUB_ENV
+        
+        # Determinar si se excedió el umbral
+        THRESHOLD_EXCEEDED=$(awk "BEGIN {print ($FAILURE_PERCENTAGE > ${{ env.FAILURE_THRESHOLD }})}")
+        echo "THRESHOLD_EXCEEDED=$THRESHOLD_EXCEEDED" >> $GITHUB_ENV
+        
+        echo "::notice::Total Tests: $TOTAL_TESTS"
+        echo "::notice::Passed Tests: $PASSED_TESTS"
+        echo "::notice::Failed Tests: $FAILED_TESTS"
+        echo "::notice::Failure Percentage: $FAILURE_PERCENTAGE%"
+        echo "::notice::Threshold: ${{ env.FAILURE_THRESHOLD }}%"
+
+    - name: Extract failed test details
+      if: env.FAILED_TESTS > 0
+      id: failed_details
+      run: |
+        # Extraer detalles de las pruebas fallidas
+        FAILED_DETAILS=$(jq -r '.run.executions[] | select(.assertions[]? | select(.error != null)) | "❌ **\(.item.name)**\n  - Request: `\(.request.method) \(.request.url.raw // "N/A")`\n  - Error: \(.assertions[] | select(.error != null) | .error.message)\n"' newman-report.json)
+        
+        # Guardar en archivo temporal para evitar problemas con caracteres especiales
+        echo "$FAILED_DETAILS" > failed_details.txt
+        
+        # Crear resumen de errores
+        echo "FAILED_DETAILS<<EOF" >> $GITHUB_ENV
+        cat failed_details.txt >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+
+    - name: Create Test Summary
+      run: |
+        # Crear resumen visual
+        if [ "${{ env.THRESHOLD_EXCEEDED }}" == "1" ]; then
+          STATUS_EMOJI="🔴"
+          STATUS_TEXT="FAILED - Threshold Exceeded"
+        elif [ "${{ env.FAILED_TESTS }}" -gt 0 ]; then
+          STATUS_EMOJI="⚠️"
+          STATUS_TEXT="PASSED - Within Threshold"
+        else
+          STATUS_EMOJI="✅"
+          STATUS_TEXT="SUCCESS"
+        fi
+        
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        # $STATUS_EMOJI API Test Results: $STATUS_TEXT
+        
+        ## 📊 Test Statistics
+        
+        | Metric | Count | Percentage |
+        |--------|-------|-----------|
+        | Total Tests | ${{ env.TOTAL_TESTS }} | 100% |
+        | ✅ Passed | ${{ env.PASSED_TESTS }} | $(awk "BEGIN {printf \"%.2f\", (${{ env.PASSED_TESTS }} / ${{ env.TOTAL_TESTS }}) * 100}")% |
+        | ❌ Failed | ${{ env.FAILED_TESTS }} | ${{ env.FAILURE_PERCENTAGE }}% |
+        | Total Assertions | ${{ env.TOTAL_ASSERTIONS }} | - |
+        | Failed Assertions | ${{ env.FAILED_ASSERTIONS }} | - |
+        
+        ## 📈 Threshold Analysis
+        
+        - **Failure Threshold**: ${{ env.FAILURE_THRESHOLD }}%
+        - **Current Failure Rate**: ${{ env.FAILURE_PERCENTAGE }}%
+        - **Status**: $([ "${{ env.THRESHOLD_EXCEEDED }}" == "1" ] && echo "❌ EXCEEDED" || echo "✅ WITHIN LIMITS")
+        
+        EOF
+        
+        if [ "${{ env.FAILED_TESTS }}" -gt 0 ]; then
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+        ## ❌ Failed Tests Details
+        
+        ${{ env.FAILED_DETAILS }}
+        
+        EOF
+        fi
+        
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        ---
+        📄 [View Detailed HTML Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        EOF
+
+    - name: Comment on PR - Success
+      if: github.event_name == 'pull_request' && env.FAILED_TESTS == 0
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ✅ API Tests Passed Successfully!
+            
+            ### 📊 Test Results
+            - **Total Tests**: ${{ env.TOTAL_TESTS }}
+            - **Passed**: ${{ env.PASSED_TESTS }} (100%)
+            - **Failed**: 0
+            - **Total Assertions**: ${{ env.TOTAL_ASSERTIONS }}
+            
+            🎉 All API tests passed! The changes are ready for review.
+            
+            [View Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+          })
+
+    - name: Comment on PR - Failures within threshold
+      if: github.event_name == 'pull_request' && env.FAILED_TESTS > 0 && env.THRESHOLD_EXCEEDED == 0
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## ⚠️ API Tests Completed with Warnings
+            
+            ### 📊 Test Results
+            - **Total Tests**: ${{ env.TOTAL_TESTS }}
+            - **Passed**: ${{ env.PASSED_TESTS }} (${((parseFloat('${{ env.PASSED_TESTS }}') / parseFloat('${{ env.TOTAL_TESTS }}')) * 100).toFixed(2)}%)
+            - **Failed**: ${{ env.FAILED_TESTS }} (${{ env.FAILURE_PERCENTAGE }}%)
+            - **Failure Threshold**: ${{ env.FAILURE_THRESHOLD }}%
+            - **Status**: ✅ Within acceptable limits
+            
+            ### ❌ Failed Tests
+            ${{ env.FAILED_DETAILS }}
+            
+            ℹ️ The failure rate is within the acceptable threshold, but please review the failed tests.
+            
+            [View Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+          })
+
+    - name: Comment on PR - Threshold exceeded
+      if: github.event_name == 'pull_request' && env.THRESHOLD_EXCEEDED == 1
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 🔴 API Tests Failed - Threshold Exceeded
+            
+            ### 📊 Test Results
+            - **Total Tests**: ${{ env.TOTAL_TESTS }}
+            - **Passed**: ${{ env.PASSED_TESTS }} (${((parseFloat('${{ env.PASSED_TESTS }}') / parseFloat('${{ env.TOTAL_TESTS }}')) * 100).toFixed(2)}%)
+            - **Failed**: ${{ env.FAILED_TESTS }} (${{ env.FAILURE_PERCENTAGE }}%)
+            - **Failure Threshold**: ${{ env.FAILURE_THRESHOLD }}%
+            - **Status**: ❌ THRESHOLD EXCEEDED
+            
+            ### ❌ Failed Tests
+            ${{ env.FAILED_DETAILS }}
+            
+            ⛔ The failure rate exceeds the acceptable threshold. Please fix the failing tests before merging.
+            
+            [View Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+          })
+
     - name: Upload HTML report as artifact
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: newman-report
-        path: newman-report.html
+        path: |
+          newman-report.html
+          newman-report.json
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: newman-report.json
+
+    - name: Check test threshold
+      if: env.FAIL_ON_THRESHOLD == 'true' && env.THRESHOLD_EXCEEDED == 1
+      run: |
+        echo "::error::Test failure rate (${{ env.FAILURE_PERCENTAGE }}%) exceeded threshold (${{ env.FAILURE_THRESHOLD }}%)"
+        echo "❌ ${{ env.FAILED_TESTS }} out of ${{ env.TOTAL_TESTS }} tests failed"
+        exit 1
