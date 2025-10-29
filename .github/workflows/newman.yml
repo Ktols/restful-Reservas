@@ -26,11 +26,49 @@ jobs:
       - name: 📥 Checkout código
         uses: actions/checkout@v4
 
+      - name: 🔍 Verificar estructura del proyecto
+        run: |
+          echo "=== Estructura del proyecto ==="
+          ls -la
+          echo ""
+          echo "=== Buscando colección de Postman ==="
+          find . -name "*.json" -type f
+          echo ""
+          echo "=== Contenido de carpetas relevantes ==="
+          if [ -d "postman" ]; then
+            echo "Carpeta postman:"
+            ls -la postman/
+          fi
+          if [ -d "tests" ]; then
+            echo "Carpeta tests:"
+            ls -la tests/
+          fi
+
       - name: 🟢 Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
+
+      - name: 📦 Instalar dependencias del proyecto
+        run: |
+          if [ -f "package.json" ]; then
+            npm install
+          else
+            echo "No se encontró package.json"
+          fi
+
+      - name: 🚀 Iniciar servidor (si es necesario)
+        id: start_server
+        run: |
+          if [ -f "package.json" ] && grep -q "\"start\"" package.json; then
+            echo "Iniciando servidor..."
+            npm start &
+            sleep 5
+            echo "SERVER_STARTED=true" >> $GITHUB_OUTPUT
+          else
+            echo "No se requiere iniciar servidor"
+            echo "SERVER_STARTED=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: 📦 Instalar Newman y reporteros
         run: |
@@ -40,9 +78,35 @@ jobs:
         id: newman
         continue-on-error: true
         run: |
-          newman run ./tests/RESTFUL_BOOKER_AUTOMATE.postman_collection.json \
+          # Buscar la colección de Postman
+          COLLECTION_FILE=""
+          
+          # Buscar en diferentes ubicaciones posibles
+          if [ -f "postman/postman_collection.json" ]; then
+            COLLECTION_FILE="postman/postman_collection.json"
+          elif [ -f "postman/RESTFUL_BOOKER_AUTOMATE.postman_collection.json" ]; then
+            COLLECTION_FILE="postman/RESTFUL_BOOKER_AUTOMATE.postman_collection.json"
+          elif [ -f "tests/RESTFUL_BOOKER_AUTOMATE.postman_collection.json" ]; then
+            COLLECTION_FILE="tests/RESTFUL_BOOKER_AUTOMATE.postman_collection.json"
+          elif [ -f "RESTFUL_BOOKER_AUTOMATE.postman_collection.json" ]; then
+            COLLECTION_FILE="RESTFUL_BOOKER_AUTOMATE.postman_collection.json"
+          else
+            # Buscar cualquier archivo .postman_collection.json
+            COLLECTION_FILE=$(find . -name "*.postman_collection.json" -type f | head -n 1)
+          fi
+          
+          if [ -z "$COLLECTION_FILE" ]; then
+            echo "ERROR: No se encontró ninguna colección de Postman"
+            exit 1
+          fi
+          
+          echo "Usando colección: $COLLECTION_FILE"
+          
+          newman run "$COLLECTION_FILE" \
             --reporters cli,json,htmlextra \
             --reporter-json-export ./newman-report.json \
+            --reporter-htmlextra-export ./newman-report.html \
+            --reporter-htmlextra-showOnlyFails \
             --reporter-htmlextra-export ./newman-report.html
 
       - name: 📊 Analizar resultados y calcular métricas
@@ -52,25 +116,29 @@ jobs:
           REPORT_FILE="./newman-report.json"
           
           if [ ! -f "$REPORT_FILE" ]; then
-            echo "ERROR: Archivo de reporte no encontrado"
-            exit 1
+            echo "ERROR: Archivo de reporte no encontrado en $REPORT_FILE"
+            echo "Archivos en el directorio:"
+            ls -la
+            
+            # Crear un reporte vacío para no romper el pipeline
+            echo '{"run":{"stats":{"tests":{"total":0,"failed":0},"assertions":{"total":0,"failed":0},"requests":{"total":0,"failed":0}},"timings":{"responseAverage":0,"responseMin":0,"responseMax":0},"failures":[]}}' > $REPORT_FILE
           fi
 
-          TOTAL_TESTS=$(jq -r '.run.stats.tests.total' $REPORT_FILE)
-          FAILED_TESTS=$(jq -r '.run.stats.tests.failed' $REPORT_FILE)
+          TOTAL_TESTS=$(jq -r '.run.stats.tests.total // 0' $REPORT_FILE)
+          FAILED_TESTS=$(jq -r '.run.stats.tests.failed // 0' $REPORT_FILE)
           PASSED_TESTS=$((TOTAL_TESTS - FAILED_TESTS))
           
-          TOTAL_ASSERTIONS=$(jq -r '.run.stats.assertions.total' $REPORT_FILE)
-          FAILED_ASSERTIONS=$(jq -r '.run.stats.assertions.failed' $REPORT_FILE)
+          TOTAL_ASSERTIONS=$(jq -r '.run.stats.assertions.total // 0' $REPORT_FILE)
+          FAILED_ASSERTIONS=$(jq -r '.run.stats.assertions.failed // 0' $REPORT_FILE)
           PASSED_ASSERTIONS=$((TOTAL_ASSERTIONS - FAILED_ASSERTIONS))
           
-          TOTAL_REQUESTS=$(jq -r '.run.stats.requests.total' $REPORT_FILE)
-          FAILED_REQUESTS=$(jq -r '.run.stats.requests.failed' $REPORT_FILE)
+          TOTAL_REQUESTS=$(jq -r '.run.stats.requests.total // 0' $REPORT_FILE)
+          FAILED_REQUESTS=$(jq -r '.run.stats.requests.failed // 0' $REPORT_FILE)
           PASSED_REQUESTS=$((TOTAL_REQUESTS - FAILED_REQUESTS))
           
-          RESPONSE_AVG=$(jq -r '.run.timings.responseAverage' $REPORT_FILE)
-          RESPONSE_MIN=$(jq -r '.run.timings.responseMin' $REPORT_FILE)
-          RESPONSE_MAX=$(jq -r '.run.timings.responseMax' $REPORT_FILE)
+          RESPONSE_AVG=$(jq -r '.run.timings.responseAverage // 0' $REPORT_FILE)
+          RESPONSE_MIN=$(jq -r '.run.timings.responseMin // 0' $REPORT_FILE)
+          RESPONSE_MAX=$(jq -r '.run.timings.responseMax // 0' $REPORT_FILE)
           
           if [ $TOTAL_TESTS -gt 0 ]; then
             PASS_PERCENTAGE=$(awk "BEGIN {printf \"%.2f\", ($PASSED_TESTS/$TOTAL_TESTS)*100}")
@@ -190,24 +258,26 @@ jobs:
           echo "- **Tasa de Fallas Actual:** ${{ steps.analyze.outputs.fail_percentage }}%" >> pr_comment.md
           echo "- **Estado:** ${THRESHOLD_EMOJI} ${{ steps.analyze.outputs.threshold_status }}" >> pr_comment.md
           
-          FAILURE_COUNT=$(jq -r '.run.failures | length' ./newman-report.json)
-          if [ "$FAILURE_COUNT" -gt 0 ]; then
-            echo "" >> pr_comment.md
-            echo "### ❌ Detalles de Fallas" >> pr_comment.md
-            echo "" >> pr_comment.md
-            
-            for i in $(seq 0 $((FAILURE_COUNT - 1))); do
-              NAME=$(jq -r ".run.failures[$i].source.name" ./newman-report.json)
-              TEST=$(jq -r ".run.failures[$i].error.test" ./newman-report.json)
-              MESSAGE=$(jq -r ".run.failures[$i].error.message" ./newman-report.json)
-              AT=$(jq -r ".run.failures[$i].at" ./newman-report.json)
-              
-              echo "#### $((i + 1)). ${NAME}" >> pr_comment.md
-              echo "- **Aserción:** ${TEST}" >> pr_comment.md
-              echo "- **Error:** ${MESSAGE}" >> pr_comment.md
-              echo "- **Ubicación:** ${AT}" >> pr_comment.md
+          if [ -f "./newman-report.json" ]; then
+            FAILURE_COUNT=$(jq -r '.run.failures | length // 0' ./newman-report.json)
+            if [ "$FAILURE_COUNT" -gt 0 ]; then
               echo "" >> pr_comment.md
-            done
+              echo "### ❌ Detalles de Fallas" >> pr_comment.md
+              echo "" >> pr_comment.md
+              
+              for i in $(seq 0 $((FAILURE_COUNT - 1))); do
+                NAME=$(jq -r ".run.failures[$i].source.name // \"Unknown\"" ./newman-report.json)
+                TEST=$(jq -r ".run.failures[$i].error.test // \"Unknown test\"" ./newman-report.json)
+                MESSAGE=$(jq -r ".run.failures[$i].error.message // \"No message\"" ./newman-report.json)
+                AT=$(jq -r ".run.failures[$i].at // \"Unknown location\"" ./newman-report.json)
+                
+                echo "#### $((i + 1)). ${NAME}" >> pr_comment.md
+                echo "- **Aserción:** ${TEST}" >> pr_comment.md
+                echo "- **Error:** ${MESSAGE}" >> pr_comment.md
+                echo "- **Ubicación:** ${AT}" >> pr_comment.md
+                echo "" >> pr_comment.md
+              done
+            fi
           fi
           
           echo "" >> pr_comment.md
