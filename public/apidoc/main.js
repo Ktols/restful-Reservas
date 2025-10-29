@@ -240,7 +240,11 @@ function init($, _, locale, Handlebars, apiProject, apiData, Prism, sampleReques
         if ( topics ) {
           topics.forEach(function(entry) {
               var level = entry.substring(2,3);
-              var title = entry.replace(/<.+?>/g, '');    // Remove all HTML tags for the title
+              var previousTitle, title = entry;
+              do {
+                  previousTitle = title;
+                  title = title.replace(/<.+?>/g, '');
+              } while (title !== previousTitle);      // Remove all HTML tags for the title
               var entry_tags = entry.match(/id="api-([^\-]+)(?:-(.+))?"/);    // Find the group and name in the id property
               var group = (entry_tags ? entry_tags[1] : null);
               var name = (entry_tags ? entry_tags[2] : null);
