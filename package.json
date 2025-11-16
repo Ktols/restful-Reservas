@@ -22,7 +22,7 @@
     "pug": "^3.0.3",
     "uuid": "^9.0.0",
     "validate.js": "^0.13.1",
-    "xml2js": "^0.6.0"
+    "xml2js": "^0.6.1"
   },
   "devDependencies": {
     "chai": "^4.3.7",
