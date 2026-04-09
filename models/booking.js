@@ -4,24 +4,24 @@ let counter = 0;
 const booking = new Datastore();
 
 exports.getIDs = function(query, callback){
-  booking.find(query, function(err, booking){
+  booking.find(query, function(err, bookings){
     if(err){
       callback(err);
     } else {
-      callback(null, booking);
+      callback(null, bookings);
     }
   });
-},
+};
 
 exports.get = function(id, callback){
   booking.findOne({'bookingid': parseInt(id)}, function(err, booking) {
     if(err){
-      callback(err, null)
+      callback(err, null);
     } else {
       callback(null, booking);
     }
   });
-},
+};
 
 exports.create = function(payload, callback){
   counter++;
@@ -34,7 +34,7 @@ exports.create = function(payload, callback){
       callback(null, payload);
     }
   });
-},
+};
 
 exports.update = function(id, updatedBooking, callback){
   booking.update({'bookingid': parseInt(id)}, { $set: updatedBooking }, {}, function(err){
@@ -44,7 +44,7 @@ exports.update = function(id, updatedBooking, callback){
       callback(null);
     }
   });
-},
+};
 
 exports.delete = function(id, callback){
   booking.remove({'bookingid': parseInt(id)}, function(err){
@@ -53,13 +53,17 @@ exports.delete = function(id, callback){
     } else {
       callback(null);
     }
-  })
-},
+  });
+};
 
 exports.deleteAll = function(callback){
   counter = 0;
 
-  booking.remove({}, function(err){
-    callback();
+  booking.remove({}, { multi: true }, function(err){
+    if(err){
+      callback(err);
+    } else {
+      callback(null);
+    }
   });
-}
+};
